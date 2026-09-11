@@ -52,9 +52,10 @@ async def on_message(ws, m):
         name = str(m.get('name', 'Room'))[:32]
         pwd = str(m.get('password', ''))
         mx = max(1, min(16, int(m.get('max_players', 4))))
+        hname = str(m.get('host_name', 'Host'))[:24]
         rid = gen_room_id()
         ROOMS[rid] = {'name': name, 'password': pwd, 'max_players': mx,
-                      'host': ws, 'clients': {}}
+                      'host': ws, 'host_name': hname, 'clients': {}}
         CONNS[ws] = {'role': 'host', 'room_id': rid}
         await safe_send(ws, {'type': 'registered', 'room_id': rid})
         await broadcast_rooms()
@@ -88,10 +89,13 @@ async def on_message(ws, m):
         cname = str(m.get('client_name', 'Player'))[:24]
         r['clients'][ws] = cname
         CONNS[ws] = {'role': 'client', 'room_id': rid, 'name': cname}
+        players_list = [r['host_name']] + list(r['clients'].values())
         await safe_send(ws, {'type': 'joined', 'room_id': rid,
-                             'players': 1 + len(r['clients'])})
+                             'players': 1 + len(r['clients']),
+                             'players_list': players_list})
         await safe_send(r['host'], {'type': 'peer_joined', 'client_name': cname,
-                                    'players': 1 + len(r['clients'])})
+                                    'players': 1 + len(r['clients']),
+                                    'players_list': players_list})
         await broadcast_rooms()
 
     elif t == 'leave':
@@ -102,7 +106,8 @@ async def on_message(ws, m):
                 r['clients'].pop(ws, None)
                 await safe_send(r['host'], {'type': 'peer_left',
                                             'client_name': info.get('name', 'Player'),
-                                            'players': len(r['clients'])})
+                                            'players': len(r['clients']),
+                                            'players_list': [r['host_name']] + list(r['clients'].values())})
             CONNS[ws] = {'role': 'browser'}
             await broadcast_rooms()
 
@@ -149,7 +154,8 @@ async def handler(ws):
                     r['clients'].pop(ws, None)
                     await safe_send(r['host'], {'type': 'peer_left',
                                                 'client_name': info.get('name', 'Player'),
-                                                'players': len(r['clients'])})
+                                                'players': len(r['clients']),
+                                                'players_list': [r['host_name']] + list(r['clients'].values())})
             await broadcast_rooms()
 
 
